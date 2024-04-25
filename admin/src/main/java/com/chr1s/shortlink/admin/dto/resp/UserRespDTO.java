@@ -1,5 +1,7 @@
 package com.chr1s.shortlink.admin.dto.resp;
 
+import com.chr1s.shortlink.admin.common.serialize.PhoneDesensitizationSerializer;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.Data;
 
 import java.util.Date;
@@ -27,13 +29,13 @@ public class UserRespDTO {
     /**
      * 手机号
      */
+    @JsonSerialize(using = PhoneDesensitizationSerializer.class)
     private String phone;
 
     /**
      * 邮箱
      */
     private String mail;
-
 
 
 }
