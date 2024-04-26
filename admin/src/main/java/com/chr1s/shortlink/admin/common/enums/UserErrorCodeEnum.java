@@ -7,7 +7,9 @@ public enum UserErrorCodeEnum implements IErrorCode {
 
     USER_EXIST("B000202", "用户名重复"),
 
-    USER_SAVE_ERROR("B000203","用户插入失败");
+    USER_SAVE_ERROR("B000203", "用户插入失败"),
+
+    USER_UPDATE_ERROR("B000204", "用户更新信息失败");
 
     private final String code;
 
@@ -27,4 +29,4 @@ public enum UserErrorCodeEnum implements IErrorCode {
     public String message() {
         return message;
     }
-    }
+}
