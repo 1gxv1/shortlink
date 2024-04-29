@@ -1,5 +1,6 @@
 package com.chr1s.shortlink.admin.dao.entity;
 
+import com.alibaba.fastjson2.annotation.JSONField;
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -15,6 +16,7 @@ public class UserDo extends BaseDO {
     /**
      * id
      */
+    @JSONField(name = "id")
     private Long id;
 
     /**

@@ -1,14 +1,22 @@
 package com.chr1s.shortlink.admin.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.chr1s.shortlink.admin.common.biz.user.UserContext;
+import com.chr1s.shortlink.admin.common.convention.exception.ClientException;
 import com.chr1s.shortlink.admin.dao.entity.GroupDo;
 import com.chr1s.shortlink.admin.dao.mapper.GroupMapper;
+import com.chr1s.shortlink.admin.dto.req.GroupUpdateReqDTO;
+import com.chr1s.shortlink.admin.dto.resp.ShortLinkGroupRespDTO;
 import com.chr1s.shortlink.admin.service.GroupService;
 import com.chr1s.shortlink.admin.util.RandomGenerator;
 import groovy.util.logging.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 @Slf4j
@@ -21,16 +29,38 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDo> implemen
         } while (hasGrid(gid));
         GroupDo build = GroupDo.builder()
                 .name(groupName)
+                .username(UserContext.getUsername())
                 .sortOrder(0)
                 .gid(RandomGenerator.generateRandomString())
                 .build();
         baseMapper.insert(build);
     }
 
+    @Override
+    public List<ShortLinkGroupRespDTO> listGroup() {
+        LambdaQueryWrapper<GroupDo> groupDoLambdaQueryWrapper = Wrappers.lambdaQuery(GroupDo.class)
+                .eq(GroupDo::getUsername, UserContext.getUsername())
+                .orderByDesc(GroupDo::getSortOrder, GroupDo::getUpdateTime);
+        List<GroupDo> groupDos = baseMapper.selectList(groupDoLambdaQueryWrapper);
+        return BeanUtil.copyToList(groupDos, ShortLinkGroupRespDTO.class);
+    }
+
+    @Override
+    public void updateGroup(GroupUpdateReqDTO requestParam) {
+        LambdaUpdateWrapper<GroupDo> eq = Wrappers.lambdaUpdate(GroupDo.class)
+                .eq(GroupDo::getUsername, UserContext.getUsername())
+                .eq(GroupDo::getGid, requestParam.getGid())
+                .eq(GroupDo::getDelFlag, 0);
+        GroupDo groupDo = new GroupDo();
+        groupDo.setName(requestParam.getName());
+        int update = baseMapper.update(groupDo, eq);
+        if (update<1) throw new ClientException("更新组名失败，数据库错误");
+    }
+
     private boolean hasGrid(String gid) {
         LambdaQueryWrapper<GroupDo> wrapper = Wrappers.lambdaQuery(GroupDo.class)
                 .eq(GroupDo::getGid, gid)
-                .eq(GroupDo::getUsername, null);
+                .eq(GroupDo::getUsername, UserContext.getUsername());
         GroupDo selectedOne = baseMapper.selectOne(wrapper);
         return selectedOne != null;
     }
