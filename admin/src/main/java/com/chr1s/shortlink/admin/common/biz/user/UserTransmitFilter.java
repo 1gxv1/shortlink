@@ -2,6 +2,7 @@ package com.chr1s.shortlink.admin.common.biz.user;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson2.JSON;
+import com.chr1s.shortlink.admin.common.convention.exception.ClientException;
 import com.chr1s.shortlink.admin.dao.entity.UserDo;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,10 +22,10 @@ public class UserTransmitFilter implements Filter {
     @Override
     public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
         HttpServletRequest httpServletRequest = (HttpServletRequest) servletRequest;
-        String url=httpServletRequest.getRequestURI();
-        if (!Objects.equals(url,"/api/short-link/v1/user/login/")){
+        String url = httpServletRequest.getRequestURI();
+        if (!Objects.equals(url, "/api/short-link/v1/user/login")) {
             String token = httpServletRequest.getHeader("token");
-            Object userInfoJsonStr = stringRedisTemplate.opsForHash().get(USER_LOGIN_KEY + token,"user");
+            Object userInfoJsonStr = stringRedisTemplate.opsForHash().get(USER_LOGIN_KEY + token, "user");
             if (userInfoJsonStr != null) {
                 UserDo userDo = JSON.parseObject(userInfoJsonStr.toString(), UserDo.class);
                 UserContext.setUser(BeanUtil.toBean(userDo, UserInfoDTO.class));
@@ -32,9 +33,10 @@ public class UserTransmitFilter implements Filter {
         }
         try {
             filterChain.doFilter(servletRequest, servletResponse);
+        } catch (Exception ignored) {
+            throw new ClientException(ignored.toString());
         } finally {
             UserContext.removeUser();
         }
-
     }
 }
