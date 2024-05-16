@@ -9,6 +9,7 @@ import com.chr1s.shortlink.admin.common.biz.user.UserContext;
 import com.chr1s.shortlink.admin.common.convention.exception.ClientException;
 import com.chr1s.shortlink.admin.dao.entity.GroupDo;
 import com.chr1s.shortlink.admin.dao.mapper.GroupMapper;
+import com.chr1s.shortlink.admin.dto.req.GroupSortReqDTO;
 import com.chr1s.shortlink.admin.dto.req.GroupUpdateReqDTO;
 import com.chr1s.shortlink.admin.dto.resp.ShortLinkGroupRespDTO;
 import com.chr1s.shortlink.admin.service.GroupService;
@@ -54,7 +55,36 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDo> implemen
         GroupDo groupDo = new GroupDo();
         groupDo.setName(requestParam.getName());
         int update = baseMapper.update(groupDo, eq);
-        if (update<1) throw new ClientException("更新组名失败，数据库错误");
+        if (update < 1) throw new ClientException("更新组名失败，数据库错误");
+    }
+
+    @Override
+    public void deleteGroup(String gid) {
+        LambdaUpdateWrapper<GroupDo> eq = Wrappers.lambdaUpdate(GroupDo.class)
+                .eq(GroupDo::getUsername, UserContext.getUsername())
+                .eq(GroupDo::getGid, gid)
+                .eq(GroupDo::getDelFlag, 0);
+        System.out.println(UserContext.getUsername());
+        GroupDo groupDo = new GroupDo();
+        groupDo.setDelFlag(1);
+        GroupDo groupDo1 = baseMapper.selectOne(eq);
+        int update = baseMapper.update(groupDo, eq);
+        if (update < 1) throw new ClientException("更新组名失败，数据库错误");
+    }
+
+    @Override
+    public void sortGroup(List<GroupSortReqDTO> requestParam) {
+        for (GroupSortReqDTO groupSortReqDTO : requestParam) {
+            GroupDo groupDo = GroupDo.builder()
+                    .sortOrder(groupSortReqDTO.getSortOrder())
+                    .build();
+            LambdaUpdateWrapper<GroupDo> eq = Wrappers.lambdaUpdate(GroupDo.class)
+                    .eq(GroupDo::getUsername, UserContext.getUsername())
+                    .eq(GroupDo::getGid, groupSortReqDTO.getGid())
+                    .eq(GroupDo::getDelFlag, 0);
+            baseMapper.update(groupDo, eq);
+        }
+
     }
 
     private boolean hasGrid(String gid) {
