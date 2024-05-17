@@ -12,16 +12,22 @@ import com.chr1s.shortlink.admin.dao.mapper.GroupMapper;
 import com.chr1s.shortlink.admin.dto.req.GroupSortReqDTO;
 import com.chr1s.shortlink.admin.dto.req.GroupUpdateReqDTO;
 import com.chr1s.shortlink.admin.dto.resp.ShortLinkGroupRespDTO;
+import com.chr1s.shortlink.admin.remote.dto.ShortLinkRemoteService;
+import com.chr1s.shortlink.admin.remote.dto.resp.ShortLinkGroupCountRespDTO;
 import com.chr1s.shortlink.admin.service.GroupService;
 import com.chr1s.shortlink.admin.util.RandomGenerator;
 import groovy.util.logging.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
 public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDo> implements GroupService {
+    ShortLinkRemoteService shortLinkRemoteService = new ShortLinkRemoteService() {
+    };
     @Override
     public void saveGroup(String groupName) {
         String gid;
@@ -39,11 +45,15 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDo> implemen
 
     @Override
     public List<ShortLinkGroupRespDTO> listGroup() {
-        LambdaQueryWrapper<GroupDo> groupDoLambdaQueryWrapper = Wrappers.lambdaQuery(GroupDo.class)
+        LambdaQueryWrapper<GroupDo> queryWrapper = Wrappers.lambdaQuery(GroupDo.class)
                 .eq(GroupDo::getUsername, UserContext.getUsername())
-                .orderByDesc(GroupDo::getSortOrder, GroupDo::getUpdateTime);
-        List<GroupDo> groupDos = baseMapper.selectList(groupDoLambdaQueryWrapper);
-        return BeanUtil.copyToList(groupDos, ShortLinkGroupRespDTO.class);
+                .orderByAsc(GroupDo::getSortOrder)
+                .orderByAsc(GroupDo::getUpdateTime);
+        List<GroupDo> groups = baseMapper.selectList(queryWrapper);
+        List<ShortLinkGroupCountRespDTO> gids = shortLinkRemoteService.listGroupLinkCount(groups.stream().map(GroupDo::getGid).toList()).getData();
+        List<ShortLinkGroupRespDTO> results = BeanUtil.copyToList(groups, ShortLinkGroupRespDTO.class);
+        Map<String, Integer> counts = gids.stream().collect(Collectors.toMap(ShortLinkGroupCountRespDTO::getGid, ShortLinkGroupCountRespDTO::getShortLinkCount));
+        return results.stream().peek(result -> result.setShortLinkCount(counts.get(result.getGid()))).toList();
     }
 
     @Override
