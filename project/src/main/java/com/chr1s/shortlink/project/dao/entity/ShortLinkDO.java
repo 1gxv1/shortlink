@@ -3,12 +3,15 @@ package com.chr1s.shortlink.project.dao.entity;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.chr1s.shortlink.project.common.database.BaseDO;
-import lombok.Data;
+import lombok.*;
 
 import java.util.Date;
 
 @Data
 @TableName("t_link")
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class ShortLinkDO extends BaseDO {
     /**
      * id
