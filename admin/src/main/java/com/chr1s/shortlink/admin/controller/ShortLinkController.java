@@ -30,4 +30,5 @@ public class ShortLinkController {
     public Result<IPage<ShortLinkPageRespDTO>> pageShortLink(ShortLinkPageReqDTO shortLinkPageReqDTO) {
         return shortLinkRemoteService.pageShortLink(shortLinkPageReqDTO);
     }
+
 }
