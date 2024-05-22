@@ -10,10 +10,7 @@ import com.chr1s.shortlink.project.common.constant.RedisKeyConstant;
 import com.chr1s.shortlink.project.common.constant.ShortLinkConstant;
 import com.chr1s.shortlink.project.dao.entity.ShortLinkDO;
 import com.chr1s.shortlink.project.dao.mapper.ShortLinkMapper;
-import com.chr1s.shortlink.project.dto.req.RecycleBinRecoverReqDTO;
-import com.chr1s.shortlink.project.dto.req.RecycleBinSaveReqDTO;
-import com.chr1s.shortlink.project.dto.req.ShortLinkPageReqDTO;
-import com.chr1s.shortlink.project.dto.req.ShortLinkRecycleBinPageReqDTO;
+import com.chr1s.shortlink.project.dto.req.*;
 import com.chr1s.shortlink.project.dto.resp.ShortLinkPageRespDTO;
 import com.chr1s.shortlink.project.service.RecycleBinService;
 import lombok.RequiredArgsConstructor;
@@ -69,5 +66,16 @@ public class RecycleBinServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLin
 
         baseMapper.update(updateShortLinkDO, queryWrapper);
         stringRedisTemplate.delete(String.format(GOTO_SHORT_LINK_KEY, requestParam.getFullShortUrl()));
+    }
+
+    @Override
+    public void removeRecycleBin(RecycleBinRemoveReqDTO requestParam) {
+        LambdaUpdateWrapper<ShortLinkDO> deleteWrapper = Wrappers.lambdaUpdate(ShortLinkDO.class)
+                .eq(ShortLinkDO::getFullShortUrl, requestParam.getFullShortUrl())
+                .eq(ShortLinkDO::getGid, requestParam.getGid())
+                .eq(ShortLinkDO::getEnableStatus, 1)
+                .eq(ShortLinkDO::getDelFlag, 0);
+
+        baseMapper.delete(deleteWrapper);
     }
 }
