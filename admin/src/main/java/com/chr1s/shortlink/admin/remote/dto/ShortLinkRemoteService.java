@@ -8,6 +8,7 @@ import com.chr1s.shortlink.admin.common.convention.result.Result;
 import com.chr1s.shortlink.admin.common.convention.result.Results;
 import com.chr1s.shortlink.admin.dto.req.RecycleBinSaveReqDTO;
 import com.chr1s.shortlink.admin.dto.req.ShortLinkUpdateReqDTO;
+import com.chr1s.shortlink.admin.remote.dto.req.RecycleBinRecoverReqDTO;
 import com.chr1s.shortlink.admin.remote.dto.req.ShortLinkCreateReqDTO;
 import com.chr1s.shortlink.admin.remote.dto.req.ShortLinkPageReqDTO;
 import com.chr1s.shortlink.admin.remote.dto.req.ShortLinkRecycleBinPageReqDTO;
@@ -69,5 +70,9 @@ public interface ShortLinkRemoteService {
         String result = HttpUtil.get("http://127.0.0.1:8001/api/short-link/v1/recycle-bin/page", map);
         return JSON.parseObject(result, new TypeReference<>() {
         });
+    }
+
+    default void recoverRecycleBin(RecycleBinRecoverReqDTO requestParam) {
+        HttpUtil.post("http://127.0.0.1:8001/api/short-link/v1/recycle-bin/recover", JSON.toJSONString(requestParam));
     }
 }
