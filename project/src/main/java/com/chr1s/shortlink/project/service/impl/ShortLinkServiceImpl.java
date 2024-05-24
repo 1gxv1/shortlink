@@ -5,6 +5,9 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.date.Week;
 import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.http.HttpUtil;
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -16,9 +19,11 @@ import com.chr1s.shortlink.project.common.constant.RedisKeyConstant;
 import com.chr1s.shortlink.project.common.convention.exception.ServiceException;
 import com.chr1s.shortlink.project.common.enums.ValidDateTypeEnum;
 import com.chr1s.shortlink.project.dao.entity.LinkAccessStatsDTO;
+import com.chr1s.shortlink.project.dao.entity.LinkLocaleStatsDO;
 import com.chr1s.shortlink.project.dao.entity.ShortLinkDO;
 import com.chr1s.shortlink.project.dao.entity.ShortLinkGotoDO;
 import com.chr1s.shortlink.project.dao.mapper.LinkAccessStatsMapper;
+import com.chr1s.shortlink.project.dao.mapper.LinkLocaleStatsMapper;
 import com.chr1s.shortlink.project.dao.mapper.ShortLinkGotoMapper;
 import com.chr1s.shortlink.project.dao.mapper.ShortLinkMapper;
 import com.chr1s.shortlink.project.dto.req.ShortLinkCreateReqDTO;
@@ -30,13 +35,13 @@ import com.chr1s.shortlink.project.dto.resp.ShortLinkPageRespDTO;
 import com.chr1s.shortlink.project.service.ShortLinkService;
 import com.chr1s.shortlink.project.toolkit.HashUtil;
 import com.chr1s.shortlink.project.toolkit.LinkUtil;
+import com.google.gson.JsonObject;
 import groovy.util.logging.Slf4j;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jodd.util.ArraysUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import org.jsoup.Jsoup;
@@ -45,6 +50,7 @@ import org.jsoup.nodes.Element;
 import org.redisson.api.RBloomFilter;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,6 +63,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.chr1s.shortlink.project.common.constant.RedisKeyConstant.*;
+import static com.chr1s.shortlink.project.common.constant.ShortLinkConstant.GAODE_URL;
 import static java.lang.String.format;
 
 @Service
@@ -73,6 +80,11 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     private final RedissonClient redissonClient;
 
     private final LinkAccessStatsMapper linkAccessStatsMapper;
+
+    private final LinkLocaleStatsMapper linkLocaleStatsMapper;
+
+    @Value("${short-link.stats.locale.amap-key}")
+    private String statsLocaleAmapKey;
 
     @Override
     public ShortLinkCreateRespDTO createShortLink(ShortLinkCreateReqDTO requestParam) {
@@ -242,6 +254,50 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     }
 
     private void shortLinkStats(String fullShortUrl, String gid, ServletRequest request, ServletResponse response) {
+
+        if (StrUtil.isBlank(gid)) {
+            LambdaQueryWrapper<ShortLinkGotoDO> queryWrapper = Wrappers.lambdaQuery(ShortLinkGotoDO.class)
+                    .eq(ShortLinkGotoDO::getFullShortUrl, fullShortUrl);
+            ShortLinkGotoDO shortLinkGotoDO = shortLinkGotoMapper.selectOne(queryWrapper);
+            gid = shortLinkGotoDO.getGid();
+        }
+
+        addShortLinkUV(fullShortUrl, gid, request, response);
+
+        addShortLnkLocale(fullShortUrl, gid, request);
+
+    }
+
+    private void addShortLnkLocale(String fullShortUrl, String gid, ServletRequest request) {
+        String ip = request.getRemoteAddr();
+        HashMap<String, Object> map = new HashMap<>();
+        map.put("key", statsLocaleAmapKey);
+        map.put("ip", ip);
+
+        String result = HttpUtil.get(GAODE_URL, map);
+
+        JSONObject localeResultObj = JSON.parseObject(result);
+
+        String infoCode = localeResultObj.getString("infocode");
+
+        if (StrUtil.isNotBlank(infoCode) && Objects.equals(infoCode, "10000")) {
+            String province = localeResultObj.getString("province");
+            boolean unknownFlag = province.equals("[]");
+            LinkLocaleStatsDO linkLocaleStatsDO = LinkLocaleStatsDO.builder()
+                    .fullShortUrl(fullShortUrl)
+                    .gid(gid)
+                    .city(unknownFlag ? "未知" : localeResultObj.getString("city"))
+                    .province(unknownFlag ? "未知" : localeResultObj.getString("province"))
+                    .country(unknownFlag ? "未知" : "中国")
+                    .adcode(unknownFlag ? "未知" : localeResultObj.getString("adcode"))
+                    .cnt(1)
+                    .date(new Date())
+                    .build();
+            linkLocaleStatsMapper.shortLinkLocaleStats(linkLocaleStatsDO);
+        }
+    }
+
+    private void addShortLinkUV(String fullShortUrl, String gid, ServletRequest request, ServletResponse response) {
         AtomicBoolean uvFirstFlag = new AtomicBoolean();
         Cookie[] cookies = ((HttpServletRequest) request).getCookies();
 
@@ -254,6 +310,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             uvFirstFlag.set(true);
             ((HttpServletResponse) response).addCookie(uvCookie);
         };
+
 
         if (ArrayUtil.isNotEmpty(cookies)) {
             Arrays.stream(cookies)
@@ -274,12 +331,6 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         int hour = DateUtil.hour(new Date(), true);
         Week week = DateUtil.dayOfWeekEnum(new Date());
         int weekValue = week.getIso8601Value();
-        if (StrUtil.isBlank(gid)) {
-            LambdaQueryWrapper<ShortLinkGotoDO> queryWrapper = Wrappers.lambdaQuery(ShortLinkGotoDO.class)
-                    .eq(ShortLinkGotoDO::getFullShortUrl, fullShortUrl);
-            ShortLinkGotoDO shortLinkGotoDO = shortLinkGotoMapper.selectOne(queryWrapper);
-            gid = shortLinkGotoDO.getGid();
-        }
 
         LinkAccessStatsDTO linkAccessStatsDTO = LinkAccessStatsDTO.builder()
                 .pv(1)
