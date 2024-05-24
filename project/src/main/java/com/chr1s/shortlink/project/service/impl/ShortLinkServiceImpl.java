@@ -54,6 +54,7 @@ import java.net.URL;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.chr1s.shortlink.project.common.constant.RedisKeyConstant.*;
 import static com.chr1s.shortlink.project.common.constant.ShortLinkConstant.GAODE_URL;
@@ -79,6 +80,8 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     private final LinkOStatsMapper linkOStatsMapper;
 
     private final LinkBrowserStatsMapper linkBrowserStatsMapper;
+
+    private final LinkAccessLogsMapper linkAccessLogsMapper;
 
     @Value("${short-link.stats.locale.amap-key}")
     private String statsLocaleAmapKey;
@@ -258,8 +261,10 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             ShortLinkGotoDO shortLinkGotoDO = shortLinkGotoMapper.selectOne(queryWrapper);
             gid = shortLinkGotoDO.getGid();
         }
+        AtomicReference<String> uv = new AtomicReference<>();
 
-        addShortLinkUV(fullShortUrl, gid, request, response);
+
+        addShortLinkUV(fullShortUrl, gid, request, response, uv);
 
         addShortLnkLocale(fullShortUrl, gid, request);
 
@@ -267,6 +272,20 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
 
         addShortLinkBrowser(fullShortUrl, gid, request);
 
+        addShortLinkFrequency(fullShortUrl, gid, request, uv);
+
+    }
+
+    private void addShortLinkFrequency(String fullShortUrl, String gid, ServletRequest request, AtomicReference<String> uv) {
+        LinkAccessLogsDO linkAccessLogsDO = LinkAccessLogsDO.builder()
+                .user(uv.get())
+                .ip(request.getRemoteAddr())
+                .os(LinkUtil.getOs((HttpServletRequest) request))
+                .browser(LinkUtil.getBrowser((HttpServletRequest) request))
+                .gid(gid)
+                .fullShortUrl(fullShortUrl)
+                .build();
+        linkAccessLogsMapper.insert(linkAccessLogsDO);
     }
 
     private void addShortLinkBrowser(String fullShortUrl, String gid, ServletRequest request) {
@@ -320,16 +339,16 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         }
     }
 
-    private void addShortLinkUV(String fullShortUrl, String gid, ServletRequest request, ServletResponse response) {
+    private void addShortLinkUV(String fullShortUrl, String gid, ServletRequest request, ServletResponse response, AtomicReference<String> uv) {
         AtomicBoolean uvFirstFlag = new AtomicBoolean();
         Cookie[] cookies = ((HttpServletRequest) request).getCookies();
 
         Runnable addResponseTask = () -> {
-            String uv = UUID.randomUUID().toString();
-            Cookie uvCookie = new Cookie("uv", uv);
+            uv.set(UUID.randomUUID().toString());
+            Cookie uvCookie = new Cookie("uv", uv.get());
             uvCookie.setMaxAge(60 * 60 * 24 * 30);
             uvCookie.setPath(StrUtil.sub(fullShortUrl, fullShortUrl.indexOf("/"), fullShortUrl.length()));
-            stringRedisTemplate.opsForSet().add(format(COOKIE_STATS_SHORT_LINK_KEY, fullShortUrl), uv);
+            stringRedisTemplate.opsForSet().add(format(COOKIE_STATS_SHORT_LINK_KEY, fullShortUrl), uv.get());
             uvFirstFlag.set(true);
             ((HttpServletResponse) response).addCookie(uvCookie);
         };
@@ -341,6 +360,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     .findFirst()
                     .map(Cookie::getValue)
                     .ifPresentOrElse(each -> {
+                        uv.set(each);
                         Long uvAdded = stringRedisTemplate.opsForSet().add(format(COOKIE_STATS_SHORT_LINK_KEY, fullShortUrl), each);
                         uvFirstFlag.set(uvAdded != null && uvAdded > 0L);
                     }, addResponseTask);
