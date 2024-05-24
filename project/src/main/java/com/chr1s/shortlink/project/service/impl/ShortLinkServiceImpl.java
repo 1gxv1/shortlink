@@ -18,14 +18,8 @@ import com.chr1s.shortlink.admin.common.convention.exception.ClientException;
 import com.chr1s.shortlink.project.common.constant.RedisKeyConstant;
 import com.chr1s.shortlink.project.common.convention.exception.ServiceException;
 import com.chr1s.shortlink.project.common.enums.ValidDateTypeEnum;
-import com.chr1s.shortlink.project.dao.entity.LinkAccessStatsDTO;
-import com.chr1s.shortlink.project.dao.entity.LinkLocaleStatsDO;
-import com.chr1s.shortlink.project.dao.entity.ShortLinkDO;
-import com.chr1s.shortlink.project.dao.entity.ShortLinkGotoDO;
-import com.chr1s.shortlink.project.dao.mapper.LinkAccessStatsMapper;
-import com.chr1s.shortlink.project.dao.mapper.LinkLocaleStatsMapper;
-import com.chr1s.shortlink.project.dao.mapper.ShortLinkGotoMapper;
-import com.chr1s.shortlink.project.dao.mapper.ShortLinkMapper;
+import com.chr1s.shortlink.project.dao.entity.*;
+import com.chr1s.shortlink.project.dao.mapper.*;
 import com.chr1s.shortlink.project.dto.req.ShortLinkCreateReqDTO;
 import com.chr1s.shortlink.project.dto.req.ShortLinkPageReqDTO;
 import com.chr1s.shortlink.project.dto.req.ShortLinkUpdateReqDTO;
@@ -35,7 +29,6 @@ import com.chr1s.shortlink.project.dto.resp.ShortLinkPageRespDTO;
 import com.chr1s.shortlink.project.service.ShortLinkService;
 import com.chr1s.shortlink.project.toolkit.HashUtil;
 import com.chr1s.shortlink.project.toolkit.LinkUtil;
-import com.google.gson.JsonObject;
 import groovy.util.logging.Slf4j;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
@@ -82,6 +75,8 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     private final LinkAccessStatsMapper linkAccessStatsMapper;
 
     private final LinkLocaleStatsMapper linkLocaleStatsMapper;
+
+    private final LinkOStatsMapper linkOStatsMapper;
 
     @Value("${short-link.stats.locale.amap-key}")
     private String statsLocaleAmapKey;
@@ -266,6 +261,19 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
 
         addShortLnkLocale(fullShortUrl, gid, request);
 
+        addShortLinkOs(fullShortUrl,gid,request);
+
+    }
+
+    private void addShortLinkOs(String fullShortUrl, String gid, ServletRequest request) {
+        LinkOsStatsDO linkOsStatsDO = LinkOsStatsDO.builder()
+                .os(LinkUtil.getOs((HttpServletRequest) request))
+                .fullShortUrl(fullShortUrl)
+                .date(new Date())
+                .gid(gid)
+                .cnt(1)
+                .build();
+        linkOStatsMapper.shortLinkOsStats(linkOsStatsDO);
     }
 
     private void addShortLnkLocale(String fullShortUrl, String gid, ServletRequest request) {
@@ -332,7 +340,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         Week week = DateUtil.dayOfWeekEnum(new Date());
         int weekValue = week.getIso8601Value();
 
-        LinkAccessStatsDTO linkAccessStatsDTO = LinkAccessStatsDTO.builder()
+        LinkAccessStatsDO linkAccessStatsDTO = LinkAccessStatsDO.builder()
                 .pv(1)
                 .uv(uvFirstFlag.get() ? 1 : 0)
                 .uip(uipFirstFlag ? 1 : 0)
