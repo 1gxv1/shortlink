@@ -56,8 +56,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.chr1s.shortlink.project.common.constant.RedisKeyConstant.COOKIE_STATS_SHORT_LINK_KEY;
-import static com.chr1s.shortlink.project.common.constant.RedisKeyConstant.GOTO_SHORT_LINK_KEY;
+import static com.chr1s.shortlink.project.common.constant.RedisKeyConstant.*;
 import static java.lang.String.format;
 
 @Service
@@ -262,12 +261,16 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     .findFirst()
                     .map(Cookie::getValue)
                     .ifPresentOrElse(each -> {
-                        Long added = stringRedisTemplate.opsForSet().add(format(COOKIE_STATS_SHORT_LINK_KEY, fullShortUrl), each);
-                        uvFirstFlag.set(added != null && added > 0L);
+                        Long uvAdded = stringRedisTemplate.opsForSet().add(format(COOKIE_STATS_SHORT_LINK_KEY, fullShortUrl), each);
+                        uvFirstFlag.set(uvAdded != null && uvAdded > 0L);
                     }, addResponseTask);
         } else {
             addResponseTask.run();
         }
+        String remoteAddr = request.getRemoteAddr();
+        Long uipAdded = stringRedisTemplate.opsForSet().add(format(IP_STATS_SHORT_LINK_KEY, fullShortUrl), remoteAddr);
+        boolean uipFirstFlag = uipAdded != null && uipAdded > 0L;
+
         int hour = DateUtil.hour(new Date(), true);
         Week week = DateUtil.dayOfWeekEnum(new Date());
         int weekValue = week.getIso8601Value();
@@ -281,7 +284,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         LinkAccessStatsDTO linkAccessStatsDTO = LinkAccessStatsDTO.builder()
                 .pv(1)
                 .uv(uvFirstFlag.get() ? 1 : 0)
-                .uip(1)
+                .uip(uipFirstFlag ? 1 : 0)
                 .hour(hour)
                 .weekday(weekValue)
                 .fullShortUrl(fullShortUrl)
