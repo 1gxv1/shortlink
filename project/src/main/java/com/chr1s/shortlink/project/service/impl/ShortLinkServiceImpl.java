@@ -292,7 +292,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 .date(new Date())
                 .cnt(1)
                 .build();
-        linkNetworkStatsMapper.insert(linkNetworkStatsDO);
+        linkNetworkStatsMapper.shortLinkNetworkState(linkNetworkStatsDO);
 
     }
 
@@ -305,7 +305,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 .cnt(1)
                 .build();
 
-        linkDeviceStatsMapper.insert(linkDeviceStatsDO);
+        linkDeviceStatsMapper.shortLinkDeviceState(linkDeviceStatsDO);
 
     }
 
