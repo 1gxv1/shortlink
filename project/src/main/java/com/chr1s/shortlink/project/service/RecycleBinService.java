@@ -15,4 +15,6 @@ public interface RecycleBinService extends IService<ShortLinkDO> {
     void recoverRecycleBin(RecycleBinRecoverReqDTO requestParam);
 
     void removeRecycleBin(RecycleBinRemoveReqDTO requestParam);
+
+
 }
