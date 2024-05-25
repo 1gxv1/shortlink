@@ -83,6 +83,8 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
 
     private final LinkAccessLogsMapper linkAccessLogsMapper;
 
+    private final LinkDeviceStatsMapper linkDeviceStatsMapper;
+
     @Value("${short-link.stats.locale.amap-key}")
     private String statsLocaleAmapKey;
 
@@ -273,6 +275,20 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         addShortLinkBrowser(fullShortUrl, gid, request);
 
         addShortLinkFrequency(fullShortUrl, gid, request, uv);
+
+        addShortLinkDevice(fullShortUrl, gid, request);
+
+    }
+
+    private void addShortLinkDevice(String fullShortUrl, String gid, ServletRequest request) {
+        LinkDeviceStatsDO linkDeviceStatsDO = LinkDeviceStatsDO.builder()
+                .device(LinkUtil.getDevice((HttpServletRequest) request))
+                .gid(gid)
+                .fullShortUrl(fullShortUrl)
+                .cnt(1)
+                .build();
+
+        linkDeviceStatsMapper.insert(linkDeviceStatsDO);
 
     }
 
