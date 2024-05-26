@@ -265,18 +265,26 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             ShortLinkGotoDO shortLinkGotoDO = shortLinkGotoMapper.selectOne(queryWrapper);
             gid = shortLinkGotoDO.getGid();
         }
+
+        String ip = request.getRemoteAddr();
+        HashMap<String, Object> map = new HashMap<>();
+        map.put("key", statsLocaleAmapKey);
+        map.put("ip", ip);
+        String result = HttpUtil.get(GAODE_URL, map);
+
+
         AtomicReference<String> uv = new AtomicReference<>();
 
 
         addShortLinkUV(fullShortUrl, gid, request, response, uv);
 
-        addShortLnkLocale(fullShortUrl, gid, request);
+        addShortLnkLocale(fullShortUrl, gid, result);
 
         addShortLinkOs(fullShortUrl, gid, request);
 
         addShortLinkBrowser(fullShortUrl, gid, request);
 
-        addShortLinkFrequency(fullShortUrl, gid, request, uv);
+        addShortLinkFrequency(fullShortUrl, gid, request, uv, result);
 
         addShortLinkDevice(fullShortUrl, gid, request);
 
@@ -309,13 +317,20 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
 
     }
 
-    private void addShortLinkFrequency(String fullShortUrl, String gid, ServletRequest request, AtomicReference<String> uv) {
+    private void addShortLinkFrequency(String fullShortUrl, String gid, ServletRequest request, AtomicReference<String> uv, String res) {
+        JSONObject resObject = JSON.parseObject(res);
+        String actualProvince = Objects.equals(resObject.getString("province"), "[]") ? "未知" : resObject.getString("province");
+        String actualCity = Objects.equals(resObject.getString("city"), "[]") ? "未知" : resObject.getString("city");
+
         LinkAccessLogsDO linkAccessLogsDO = LinkAccessLogsDO.builder()
                 .user(uv.get())
                 .ip(request.getRemoteAddr())
                 .os(LinkUtil.getOs((HttpServletRequest) request))
                 .browser(LinkUtil.getBrowser((HttpServletRequest) request))
                 .gid(gid)
+                .network(LinkUtil.getNetwork((HttpServletRequest) request))
+                .device(LinkUtil.getDevice((HttpServletRequest) request))
+                .locale(StrUtil.join("-", "中国", actualProvince, actualCity))
                 .fullShortUrl(fullShortUrl)
                 .build();
         linkAccessLogsMapper.insert(linkAccessLogsDO);
@@ -343,13 +358,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         linkOStatsMapper.shortLinkOsStats(linkOsStatsDO);
     }
 
-    private void addShortLnkLocale(String fullShortUrl, String gid, ServletRequest request) {
-        String ip = request.getRemoteAddr();
-        HashMap<String, Object> map = new HashMap<>();
-        map.put("key", statsLocaleAmapKey);
-        map.put("ip", ip);
-
-        String result = HttpUtil.get(GAODE_URL, map);
+    private void addShortLnkLocale(String fullShortUrl, String gid, String result) {
 
         JSONObject localeResultObj = JSON.parseObject(result);
 
