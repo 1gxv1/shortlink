@@ -1,5 +1,6 @@
 package com.chr1s.shortlink.admin.remote.dto;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.http.HttpUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
@@ -9,14 +10,13 @@ import com.chr1s.shortlink.admin.common.convention.result.Results;
 import com.chr1s.shortlink.admin.dto.req.RecycleBinSaveReqDTO;
 import com.chr1s.shortlink.admin.dto.req.ShortLinkUpdateReqDTO;
 import com.chr1s.shortlink.admin.remote.dto.req.*;
-import com.chr1s.shortlink.admin.remote.dto.resp.ShortLinkCreateRespDTO;
-import com.chr1s.shortlink.admin.remote.dto.resp.ShortLinkGroupCountRespDTO;
-import com.chr1s.shortlink.admin.remote.dto.resp.ShortLinkPageRespDTO;
+import com.chr1s.shortlink.admin.remote.dto.resp.*;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public interface ShortLinkRemoteService {
 
@@ -75,5 +75,26 @@ public interface ShortLinkRemoteService {
 
     default void removeRecycleBin(RecycleBinRemoveReqDTO requestParam) {
         HttpUtil.post("http://127.0.0.1:8001/api/short-link/v1/recycle-bin/remove", JSON.toJSONString(requestParam));
+    }
+
+    default Result<ShortLinkStatsRespDTO> shortLinkAccessRecord(ShortLinkStatsReqDTO requestParam) {
+        HashMap<String, Object> map = new HashMap<>();
+        map.put("fullShortUrl", requestParam.getFullShortUrl());
+        map.put("gid", requestParam.getGid());
+        map.put("startDate", requestParam.getStartDate());
+        map.put("endDate", requestParam.getEndDate());
+        String result = HttpUtil.get("http://127.0.0.1:8001/api/short-link/v1/stats", map);
+        return JSON.parseObject(result, new TypeReference<>() {
+        });
+    }
+
+    default Result <IPage<ShortLinkStatsAccessRecordRespDTO>> shortLinkStatsAccessRecord(ShortLinkStatsAccessRecordReqDTO requestParam) {
+        Map<String, Object> stringObjectMap = BeanUtil.beanToMap(requestParam,false,true);
+        stringObjectMap.remove("orders");
+        stringObjectMap.remove("records");
+        String result = HttpUtil.get("http://127.0.0.1:8001/api/short-link/v1/stats/access-record", stringObjectMap);
+
+        return JSON.parseObject(result, new TypeReference<>() {
+        });
     }
 }

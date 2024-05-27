@@ -1,4 +1,4 @@
-package com.chr1s.shortlink.project.dto.req;
+package com.chr1s.shortlink.admin.remote.dto.req;
 
 import lombok.Data;
 
