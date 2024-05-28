@@ -23,6 +23,7 @@ public interface ShortLinkRemoteService {
     default Result<IPage<ShortLinkPageRespDTO>> pageShortLink(ShortLinkPageReqDTO requestParam) {
         HashMap<String, Object> map = new HashMap<>();
         map.put("gid", requestParam.getGid());
+        map.put("orderTag", requestParam.getOrderTag());
         map.put("current", requestParam.getCurrent());
         map.put("size", requestParam.getSize());
         String result = HttpUtil.get("http://127.0.0.1:8001/api/short-link/v1/page", map);
@@ -88,8 +89,8 @@ public interface ShortLinkRemoteService {
         });
     }
 
-    default Result <IPage<ShortLinkStatsAccessRecordRespDTO>> shortLinkStatsAccessRecord(ShortLinkStatsAccessRecordReqDTO requestParam) {
-        Map<String, Object> stringObjectMap = BeanUtil.beanToMap(requestParam,false,true);
+    default Result<IPage<ShortLinkStatsAccessRecordRespDTO>> shortLinkStatsAccessRecord(ShortLinkStatsAccessRecordReqDTO requestParam) {
+        Map<String, Object> stringObjectMap = BeanUtil.beanToMap(requestParam, false, true);
         stringObjectMap.remove("orders");
         stringObjectMap.remove("records");
         String result = HttpUtil.get("http://127.0.0.1:8001/api/short-link/v1/stats/access-record", stringObjectMap);
