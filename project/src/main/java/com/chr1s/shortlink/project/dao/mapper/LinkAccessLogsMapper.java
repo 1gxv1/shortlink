@@ -2,6 +2,7 @@ package com.chr1s.shortlink.project.dao.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.chr1s.shortlink.project.dao.entity.LinkAccessLogsDO;
+import com.chr1s.shortlink.project.dao.entity.LinkAccessStatsDO;
 import com.chr1s.shortlink.project.dto.req.ShortLinkStatsReqDTO;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -72,9 +73,16 @@ public interface LinkAccessLogsMapper extends BaseMapper<LinkAccessLogsDO> {
             "    user;" +
             "    </script>"
     )
-    List<Map<String, Object>> selectUvTypeByUsers(@Param("gid")String gid,
-                                                  @Param("fullShortUrl")String fullShortUrl,
-                                                  @Param("startDate")String startDate,
+    List<Map<String, Object>> selectUvTypeByUsers(@Param("gid") String gid,
+                                                  @Param("fullShortUrl") String fullShortUrl,
+                                                  @Param("startDate") String startDate,
                                                   @Param("endDate") String endDate,
-                                                  @Param("userAccessLogsList")List<String> userAccessLogsList);
+                                                  @Param("userAccessLogsList") List<String> userAccessLogsList);
+
+
+    @Select("select count(user) as pv,count(DISTINCT user) as uv,count(DISTINCT ip) as uip FROM t_link_access_logs " +
+            "WHERE full_short_url=#{param.fullShortUrl} and gid=#{param.gid} and create_time BETWEEN #{param.startDate} AND #{param.endDate} GROUP BY full_short_url,gid;"
+    )
+    LinkAccessStatsDO findPvUvUidStatsByShortLink(@Param("param") ShortLinkStatsReqDTO requestParam);
+
 }

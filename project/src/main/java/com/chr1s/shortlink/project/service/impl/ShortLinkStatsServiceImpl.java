@@ -36,6 +36,7 @@ public class ShortLinkStatsServiceImpl implements ShortLinkStatsService {
         List<ShortLinkStatsLocaleCNRespDTO> localeCnStats = new ArrayList<>();
         List<LinkLocaleStatsDO> listedLocaleByShortLink;
         listedLocaleByShortLink = linkLocaleStatsMapper.listLocaleByShortLink(requestParam);
+        LinkAccessStatsDO pvUvUidStatsByShortLink = linkAccessLogsMapper.findPvUvUidStatsByShortLink(requestParam);
         int localeCnSum = listedLocaleByShortLink.stream()
                 .mapToInt(LinkLocaleStatsDO::getCnt)
                 .sum();
@@ -177,6 +178,9 @@ public class ShortLinkStatsServiceImpl implements ShortLinkStatsService {
                 .weekdayStats(weekdayStats)
                 .browserStats(browserStats)
                 .osStats(osStats)
+                .uv(pvUvUidStatsByShortLink.getUv())
+                .pv(pvUvUidStatsByShortLink.getPv())
+                .uip(pvUvUidStatsByShortLink.getUip())
                 .uvTypeStats(uvTypeStats)
                 .deviceStats(deviceStats)
                 .networkStats(networkStats)
