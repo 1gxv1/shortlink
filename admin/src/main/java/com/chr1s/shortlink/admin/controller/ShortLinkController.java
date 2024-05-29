@@ -33,15 +33,6 @@ public class ShortLinkController {
         return shortLinkRemoteService.pageShortLink(shortLinkPageReqDTO);
     }
 
-    /**
-     * 访问分组短链接指定时间内监控数据
-     */
-    @GetMapping("/api/short-link/admin/v1/stats/group")
-    public Result<ShortLinkStatsRespDTO> groupShortLinkStats(ShortLinkGroupStatsReqDTO requestParam) {
-        return shortLinkRemoteService.groupShortLinkStats(requestParam);
-    }
-
-
 
 
 }
