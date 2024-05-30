@@ -1,8 +1,9 @@
 package com.chr1s.shortlink.project.common.enums;
 
-import lombok.RequiredArgsConstructor;
+import lombok.*;
 
 @RequiredArgsConstructor
+@Getter
 public enum ValidDateTypeEnum {
     PERMANENT(0),
 

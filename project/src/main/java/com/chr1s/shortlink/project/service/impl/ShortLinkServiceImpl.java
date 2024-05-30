@@ -36,6 +36,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import org.apache.poi.ss.formula.functions.Now;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -94,6 +95,10 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
 
     @Override
     public ShortLinkCreateRespDTO createShortLink(ShortLinkCreateReqDTO requestParam) {
+        //判断短链接创建的时候的时间是不是在这之前，是的话直接抛异常
+        if (requestParam.getValidDateType() == 1 && requestParam.getValidDate().before(new Date())) {
+            throw new ClientException("短链接设置的有效期时间比当前时间早,短链接无效");
+        }
         String shortLinkSuffix = generateSuffix(requestParam);
         String fullShortUrl = createShortLinkDefaultDomain + "/" + shortLinkSuffix;
 
@@ -192,8 +197,9 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             shortLinkDO.setGid(requestParam.getGid());
             baseMapper.insert(shortLinkDO);
         }
-
-
+        if (!Objects.equals(shortLinkDO.getValidDateType(), requestParam.getValidDateType()) || !Objects.equals(shortLinkDO.getValidDate(), requestParam.getValidDate())) {
+            stringRedisTemplate.delete(String.format(GOTO_SHORT_LINK_KEY, requestParam.getFullShortUrl()));
+        }
     }
 
     @Override
@@ -210,12 +216,17 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             ((HttpServletResponse) response).sendRedirect("/page/notfound");
             return;
         }
+
         if (StrUtil.isNotBlank(originUrl)) {
+            if (originUrl.equals("-")) {
+                ((HttpServletResponse) response).sendRedirect("/page/notfound");
+                return;
+            }
             shortLinkStats(fullShortUrl, null, request, response);
             ((HttpServletResponse) response).sendRedirect(originUrl);
             return;
         }
-        RLock lock = redissonClient.getLock(format(RedisKeyConstant.LOCK_GOTO_SHORT_LINK_KEY, fullShortUrl));
+        RLock lock = redissonClient.getLock(format(LOCK_GOTO_SHORT_LINK_KEY, fullShortUrl));
         lock.lock();
         try {
             originUrl = stringRedisTemplate.opsForValue().get(format(GOTO_SHORT_LINK_KEY, fullShortUrl));
@@ -228,7 +239,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     .eq(ShortLinkGotoDO::getFullShortUrl, fullShortUrl);
             ShortLinkGotoDO shortLinkGotoDO = shortLinkGotoMapper.selectOne(eq);
             if (shortLinkGotoDO == null) {
-//            风控处理
+//           风控处理
                 stringRedisTemplate.opsForValue().set(format(GOTO_SHORT_LINK_KEY, fullShortUrl), "-", 30, TimeUnit.MINUTES);
                 ((HttpServletResponse) response).sendRedirect("/page/notfound");
                 return;
