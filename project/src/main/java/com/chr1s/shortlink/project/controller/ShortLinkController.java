@@ -41,6 +41,7 @@ public class ShortLinkController {
         shortLinkService.restoreUrl(shortUri,request,response);
     }
 
+
     @GetMapping("/api/short-link/v1/page")
     public Result<IPage<ShortLinkPageRespDTO>> pageShortLink(ShortLinkPageReqDTO shortLinkPageReqDTO) {
         return Results.success(shortLinkService.pageShortLink(shortLinkPageReqDTO));
