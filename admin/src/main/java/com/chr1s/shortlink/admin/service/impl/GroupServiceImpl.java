@@ -1,6 +1,7 @@
 package com.chr1s.shortlink.admin.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -17,30 +18,56 @@ import com.chr1s.shortlink.admin.remote.dto.resp.ShortLinkGroupCountRespDTO;
 import com.chr1s.shortlink.admin.service.GroupService;
 import com.chr1s.shortlink.admin.util.RandomGenerator;
 import groovy.util.logging.Slf4j;
+import lombok.RequiredArgsConstructor;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static com.chr1s.shortlink.admin.common.constant.RedisCacheConstant.LOCK_GROUP_CREATE_KEY;
+
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDo> implements GroupService {
     ShortLinkRemoteService shortLinkRemoteService = new ShortLinkRemoteService() {
     };
+    private final RedissonClient redissonClient;
+
+    @Value("${short-link.group.max-num}")
+    private Integer groupMaxNum;
+
     @Override
     public void saveGroup(String groupName) {
-        String gid;
-        do {
-            gid = RandomGenerator.generateRandomString();
-        } while (hasGrid(gid));
-        GroupDo build = GroupDo.builder()
-                .name(groupName)
-                .username(UserContext.getUsername())
-                .sortOrder(0)
-                .gid(RandomGenerator.generateRandomString())
-                .build();
-        baseMapper.insert(build);
+        RLock lock = redissonClient.getLock(String.format(LOCK_GROUP_CREATE_KEY, UserContext.getUsername()));
+        lock.lock();
+        try {
+            LambdaQueryWrapper<GroupDo> groupDoLambdaQueryWrapper = Wrappers.lambdaQuery(GroupDo.class)
+                    .eq(GroupDo::getUsername, UserContext.getUsername())
+                    .eq(GroupDo::getDelFlag, 0);
+            List<GroupDo> groupDos = baseMapper.selectList(groupDoLambdaQueryWrapper);
+            if (CollUtil.isNotEmpty(groupDos) && groupDos.size() == groupMaxNum) {
+                throw new ClientException("用户创造分组数大于20");
+            }
+            String gid;
+            do {
+                gid = RandomGenerator.generateRandomString();
+            } while (hasGrid(gid));
+            GroupDo build = GroupDo.builder()
+                    .name(groupName)
+                    .username(UserContext.getUsername())
+                    .sortOrder(0)
+                    .gid(RandomGenerator.generateRandomString())
+                    .build();
+            baseMapper.insert(build);
+
+        } finally {
+            lock.unlock();
+        }
     }
 
     @Override
