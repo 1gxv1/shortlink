@@ -2,9 +2,12 @@ package com.chr1s.shortlink.project.toolkit;
 
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.util.StrUtil;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.http.HttpServletRequest;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.Date;
 import java.util.Optional;
 
@@ -86,5 +89,16 @@ public class LinkUtil {
         String actualIp = request.getRemoteAddr();
 
         return actualIp.startsWith("192.168.") || actualIp.startsWith("10.") ? "WIFI" : "Mobile";
+    }
+
+    public static String extractDomain(String originUrl) throws MalformedURLException {
+        String domain = null;
+        URL url = new URL(originUrl);
+        String host = url.getHost();
+        if (StrUtil.isNotBlank(host)) {
+            domain = host;
+            if (domain.startsWith("www.")) domain = domain.substring(4);
+        }
+        return domain;
     }
 }

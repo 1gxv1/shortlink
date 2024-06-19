@@ -15,10 +15,11 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.chr1s.shortlink.admin.common.convention.exception.ClientException;
+import com.chr1s.shortlink.project.common.convention.exception.ClientException;
 import com.chr1s.shortlink.project.common.constant.RedisKeyConstant;
 import com.chr1s.shortlink.project.common.convention.exception.ServiceException;
 import com.chr1s.shortlink.project.common.enums.ValidDateTypeEnum;
+import com.chr1s.shortlink.project.config.GotoDomainWhiteListConfig;
 import com.chr1s.shortlink.project.dao.entity.*;
 import com.chr1s.shortlink.project.dao.mapper.*;
 import com.chr1s.shortlink.project.dto.biz.ShortLinkStatsRecordDTO;
@@ -54,6 +55,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -97,6 +99,8 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
 
     private final DelayShortLinkStatsProducer delayShortLinkStatsProducer;
 
+    private final GotoDomainWhiteListConfig gotoDomainWhiteListConfig;
+
     @Value("${short-link.stats.locale.amap-key}")
     private String statsLocaleAmapKey;
 
@@ -105,6 +109,8 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
 
     @Override
     public ShortLinkCreateRespDTO createShortLink(ShortLinkCreateReqDTO requestParam) {
+
+        verifyWhiteList(requestParam.getOriginUrl());
         //判断短链接创建的时候的时间是不是在这之前，是的话直接抛异常
         if (requestParam.getValidDateType() == 1 && requestParam.getValidDate().before(new Date())) {
             throw new ClientException("短链接设置的有效期时间比当前时间早,短链接无效");
@@ -149,6 +155,20 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 .gid(requestParam.getGid())
                 .originUrl(requestParam.getOriginUrl())
                 .build();
+    }
+
+    private void verifyWhiteList(String originUrl) {
+        try {
+            Boolean enable = gotoDomainWhiteListConfig.getEnable();
+            if (enable == null || !enable) return;
+            String domain = LinkUtil.extractDomain(originUrl);
+            if (StrUtil.isBlank(domain)) throw new ClientException("域名为空！");
+            List<String> details = gotoDomainWhiteListConfig.getDetails();
+            if (!details.contains(domain))
+                throw new ClientException("域名受限，请使用以下短链接域名：" + gotoDomainWhiteListConfig.getNames());
+        } catch (Exception e) {
+            throw new ClientException(e.toString());
+        }
     }
 
 
@@ -480,8 +500,6 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     }
 
 
-
-
     public void shortLinkStats(String fullShortUrl, String gid, ShortLinkStatsRecordDTO statsRecord) {
 
         fullShortUrl = Optional.ofNullable(fullShortUrl).orElse(statsRecord.getFullShortUrl());
@@ -538,7 +556,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
 
         } catch (Exception ex) {
             log.error("短链接访问量统计异常", ex);
-        }finally {
+        } finally {
             rLock.unlock();
         }
     }
@@ -558,11 +576,11 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     private void addShortLinkDevice(String fullShortUrl, String gid, String device) {
         LinkDeviceStatsDO linkDeviceStatsDO = LinkDeviceStatsDO.builder()
                 .device(device)
-                        .gid(gid)
-                        .date(new Date())
-                        .fullShortUrl(fullShortUrl)
-                        .cnt(1)
-                        .build();
+                .gid(gid)
+                .date(new Date())
+                .fullShortUrl(fullShortUrl)
+                .cnt(1)
+                .build();
 
         linkDeviceStatsMapper.shortLinkDeviceState(linkDeviceStatsDO);
 
