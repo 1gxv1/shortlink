@@ -12,6 +12,11 @@ public class ShortLinkUpdateReqDTO {
      */
     private String domain;
 
+    /**
+     * 原始分组标识
+     */
+    private String originGid;
+
 
     /**
      * 原始链接

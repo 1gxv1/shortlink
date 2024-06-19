@@ -82,4 +82,9 @@ public class LinkUtil {
         return actualIp.startsWith("192.168.") || actualIp.startsWith("10.") ? "WIFI" : "Mobile";
     }
 
+    public static String getActualIp(HttpServletRequest request) {
+        String actualIp = request.getRemoteAddr();
+
+        return actualIp.startsWith("192.168.") || actualIp.startsWith("10.") ? "WIFI" : "Mobile";
+    }
 }
