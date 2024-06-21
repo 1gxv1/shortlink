@@ -1,7 +1,8 @@
 package com.chr1s.shortlink.admin.controller;
 
 import com.chr1s.shortlink.admin.common.convention.result.Result;
-import com.chr1s.shortlink.admin.remote.dto.ShortLinkRemoteService;
+import com.chr1s.shortlink.admin.remote.ShortLinkActualRemoteService;
+import com.chr1s.shortlink.admin.remote.ShortLinkRemoteService;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,11 +15,11 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class UrlTitleController {
 
-    ShortLinkRemoteService shortLinkRemoteService = new ShortLinkRemoteService() {
-    };
+
+    private final ShortLinkActualRemoteService shortLinkActualRemoteService;
 
     @GetMapping("/api/short-link/admin/v1/title")
     public Result<String> getTitleByUrl(@RequestParam("url") String url) throws IOException {
-        return shortLinkRemoteService.getTitleByUrl(url);
+        return shortLinkActualRemoteService.getTitleByUrl(url);
     }
 }

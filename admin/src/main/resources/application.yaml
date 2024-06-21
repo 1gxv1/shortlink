@@ -12,6 +12,8 @@ spring:
       host: 192.168.174.128
       port: 6379
       password: 123321
+  application:
+    name: short-link-admin
 short-link:
   group:
     max-num: 20

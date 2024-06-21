@@ -41,6 +41,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import net.bytebuddy.implementation.bytecode.Throw;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -108,6 +109,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     private String createShortLinkDefaultDomain;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public ShortLinkCreateRespDTO createShortLink(ShortLinkCreateReqDTO requestParam) {
 
         verifyWhiteList(requestParam.getOriginUrl());
@@ -118,43 +120,48 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         String shortLinkSuffix = generateSuffix(requestParam);
         String fullShortUrl = createShortLinkDefaultDomain + "/" + shortLinkSuffix;
 
-        ShortLinkDO shortLinkDO = ShortLinkDO.builder()
-                .domain(createShortLinkDefaultDomain)
-                .originUrl(requestParam.getOriginUrl())
-                .gid(requestParam.getGid())
-                .createdType(requestParam.getCreatedType())
-                .validDateType(requestParam.getValidDateType())
-                .validDate(requestParam.getValidDate())
-                .describe(requestParam.getDescribe())
-                .shortUri(shortLinkSuffix)
-                .enableStatus(0)
-                .totalPv(0)
-                .totalUv(0)
-                .totalUip(0)
-                .delTime(0L)
-                .fullShortUrl(fullShortUrl)
-                .favicon(getFavicon(requestParam.getOriginUrl()))
-                .build();
-        baseMapper.insert(shortLinkDO);
+        try {
+            ShortLinkDO shortLinkDO = ShortLinkDO.builder()
+                    .domain(createShortLinkDefaultDomain)
+                    .originUrl(requestParam.getOriginUrl())
+                    .gid(requestParam.getGid())
+                    .createdType(requestParam.getCreatedType())
+                    .validDateType(requestParam.getValidDateType())
+                    .validDate(requestParam.getValidDate())
+                    .describe(requestParam.getDescribe())
+                    .shortUri(shortLinkSuffix)
+                    .enableStatus(0)
+                    .totalPv(0)
+                    .totalUv(0)
+                    .totalUip(0)
+                    .delTime(0L)
+                    .fullShortUrl(fullShortUrl)
+                    .favicon(getFavicon(requestParam.getOriginUrl()))
+                    .build();
+            baseMapper.insert(shortLinkDO);
 
-        ShortLinkGotoDO linkGotoDO = ShortLinkGotoDO.builder()
-                .fullShortUrl(shortLinkDO.getFullShortUrl())
-                .gid(shortLinkDO.getGid())
-                .build();
-        shortLinkGotoMapper.insert(linkGotoDO);
+            ShortLinkGotoDO linkGotoDO = ShortLinkGotoDO.builder()
+                    .fullShortUrl(shortLinkDO.getFullShortUrl())
+                    .gid(shortLinkDO.getGid())
+                    .build();
+            shortLinkGotoMapper.insert(linkGotoDO);
 
-        stringRedisTemplate.opsForValue().set(format(GOTO_SHORT_LINK_KEY, fullShortUrl),
-                requestParam.getOriginUrl(),
-                LinkUtil.getLinkCacheValidDate(requestParam.getValidDate()),
-                TimeUnit.MILLISECONDS);
+            stringRedisTemplate.opsForValue().set(format(GOTO_SHORT_LINK_KEY, fullShortUrl),
+                    requestParam.getOriginUrl(),
+                    LinkUtil.getLinkCacheValidDate(requestParam.getValidDate()),
+                    TimeUnit.MILLISECONDS);
 
-        shortUriCreateCachePenetrationBloomFilter.add(fullShortUrl);
+            shortUriCreateCachePenetrationBloomFilter.add(fullShortUrl);
 
-        return ShortLinkCreateRespDTO.builder()
-                .fullShortUrl(shortLinkDO.getFullShortUrl())
-                .gid(requestParam.getGid())
-                .originUrl(requestParam.getOriginUrl())
-                .build();
+            return ShortLinkCreateRespDTO.builder()
+                    .fullShortUrl(shortLinkDO.getFullShortUrl())
+                    .gid(requestParam.getGid())
+                    .originUrl(requestParam.getOriginUrl())
+                    .build();
+        } catch (Throwable ex) {
+            log.error(String.format("可能由于短链接同一时间生成重复，唯一索引冲突，短链接%s", fullShortUrl));
+            throw new ClientException(String.format("可能由于短链接同一时间生成重复，唯一索引冲突，短链接%s", fullShortUrl));
+        }
     }
 
     private void verifyWhiteList(String originUrl) {
@@ -198,6 +205,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 .eq(ShortLinkDO::getGid, requestParam.getOriginGid())
                 .eq(ShortLinkDO::getFullShortUrl, requestParam.getFullShortUrl())
                 .eq(ShortLinkDO::getDelFlag, 0)
+                .eq(ShortLinkDO::getDelTime, 0)
                 .eq(ShortLinkDO::getEnableStatus, 0);
 
         ShortLinkDO hasShortLinkDO = baseMapper.selectOne(queryWrapper);
@@ -242,6 +250,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 ShortLinkDO delShortLinkDO = ShortLinkDO.builder()
                         .delTime(System.currentTimeMillis())
                         .build();
+                delShortLinkDO.setDelFlag(1);
 //将前面一个gid的短链接直接禁用，用delTime和fullShortUrl来唯一标识一个短链接，再重新根据gid创造一个新的短链接入库
                 baseMapper.update(delShortLinkDO, linkUpdateWrapper);
 
@@ -278,13 +287,18 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     linkStatsTodayService.saveBatch(linkStatsTodayDOList);
                 }
 //修改短链接goto表
-                LambdaQueryWrapper<ShortLinkGotoDO> linkGotoQueryWrapper = Wrappers.lambdaQuery(ShortLinkGotoDO.class)
+
+                LambdaUpdateWrapper<ShortLinkGotoDO> updateWrapper = Wrappers.lambdaUpdate(ShortLinkGotoDO.class)
                         .eq(ShortLinkGotoDO::getFullShortUrl, requestParam.getFullShortUrl())
                         .eq(ShortLinkGotoDO::getGid, hasShortLinkDO.getGid());
-                ShortLinkGotoDO shortLinkGotoDO = shortLinkGotoMapper.selectOne(linkGotoQueryWrapper);
-                shortLinkGotoMapper.deleteById(shortLinkGotoDO.getId());
-                shortLinkGotoDO.setGid(requestParam.getGid());
-                shortLinkGotoMapper.insert(shortLinkGotoDO);
+
+                ShortLinkGotoDO shortLinkGotoDO = ShortLinkGotoDO
+                        .builder()
+                        .fullShortUrl(shortLinkDO.getFullShortUrl())
+                        .gid(shortLinkDO.getGid())
+                        .build();
+                shortLinkGotoMapper.update(shortLinkGotoDO, updateWrapper);
+
 
                 LambdaUpdateWrapper<LinkAccessStatsDO> linkAccessStatsUpdateWrapper = Wrappers.lambdaUpdate(LinkAccessStatsDO.class)
                         .eq(LinkAccessStatsDO::getFullShortUrl, requestParam.getFullShortUrl())
@@ -659,7 +673,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             String originUrl = requestParam.getOriginUrl();
             originUrl += UUID.randomUUID().toString();
             shortUri = HashUtil.hashToBase62(originUrl);
-            if (!shortUriCreateCachePenetrationBloomFilter.contains(createShortLinkDefaultDomain+ "/" + shortUri)) {
+            if (!shortUriCreateCachePenetrationBloomFilter.contains(createShortLinkDefaultDomain + "/" + shortUri)) {
                 break;
             }
             customGenerateCount++;

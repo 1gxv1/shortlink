@@ -13,7 +13,8 @@ import com.chr1s.shortlink.admin.dao.mapper.GroupMapper;
 import com.chr1s.shortlink.admin.dto.req.GroupSortReqDTO;
 import com.chr1s.shortlink.admin.dto.req.GroupUpdateReqDTO;
 import com.chr1s.shortlink.admin.dto.resp.ShortLinkGroupRespDTO;
-import com.chr1s.shortlink.admin.remote.dto.ShortLinkRemoteService;
+import com.chr1s.shortlink.admin.remote.ShortLinkActualRemoteService;
+import com.chr1s.shortlink.admin.remote.ShortLinkRemoteService;
 import com.chr1s.shortlink.admin.remote.dto.resp.ShortLinkGroupCountRespDTO;
 import com.chr1s.shortlink.admin.service.GroupService;
 import com.chr1s.shortlink.admin.util.RandomGenerator;
@@ -34,8 +35,9 @@ import static com.chr1s.shortlink.admin.common.constant.RedisCacheConstant.LOCK_
 @Slf4j
 @RequiredArgsConstructor
 public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDo> implements GroupService {
-    ShortLinkRemoteService shortLinkRemoteService = new ShortLinkRemoteService() {
-    };
+
+    private final ShortLinkActualRemoteService shortLinkActualRemoteService;
+
     private final RedissonClient redissonClient;
 
     @Value("${short-link.group.max-num}")
@@ -77,7 +79,7 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDo> implemen
                 .orderByAsc(GroupDo::getSortOrder)
                 .orderByAsc(GroupDo::getUpdateTime);
         List<GroupDo> groups = baseMapper.selectList(queryWrapper);
-        List<ShortLinkGroupCountRespDTO> gids = shortLinkRemoteService.listGroupLinkCount(groups.stream().map(GroupDo::getGid).toList()).getData();
+        List<ShortLinkGroupCountRespDTO> gids = shortLinkActualRemoteService.listGroupLinkCount(groups.stream().map(GroupDo::getGid).toList()).getData();
         List<ShortLinkGroupRespDTO> results = BeanUtil.copyToList(groups, ShortLinkGroupRespDTO.class);
         Map<String, Integer> counts = gids.stream().collect(Collectors.toMap(ShortLinkGroupCountRespDTO::getGid, ShortLinkGroupCountRespDTO::getShortLinkCount));
         return results.stream().peek(result -> result.setShortLinkCount(counts.get(result.getGid()))).toList();
