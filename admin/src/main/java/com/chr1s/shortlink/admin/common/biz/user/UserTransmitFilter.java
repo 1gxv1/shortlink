@@ -39,26 +39,15 @@ public class UserTransmitFilter implements Filter {
 
     @SneakyThrows
     @Override
-    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
+    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) {
         HttpServletRequest httpServletRequest = (HttpServletRequest) servletRequest;
-        String url = httpServletRequest.getRequestURI();
-        if (!IGNORE_URI.contains(url)) {
-            String token = httpServletRequest.getHeader("token");
-            if (!StrUtil.isAllNotBlank(token)) {
-                returnJson((HttpServletResponse) servletResponse, JSON.toJSONString(Results.failure(new ClientException(USER_TOKEN_NULL))));
-                return;
-            }
-            Object userInfoJsonStr;
-            try {
-                userInfoJsonStr = stringRedisTemplate.opsForHash().get(USER_LOGIN_KEY + token, "user");
-                if (userInfoJsonStr == null) throw new ClientException(USER_TOKEN_FAIL);
-            } catch (Exception e) {
-                returnJson((HttpServletResponse) servletResponse, JSON.toJSONString(Results.failure(new ClientException(USER_TOKEN_FAIL))));
-                return;
-            }
-            UserDo userDo = JSON.parseObject(userInfoJsonStr.toString(), UserDo.class);
-            UserContext.setUser(BeanUtil.toBean(userDo, UserInfoDTO.class));
-
+        String token = httpServletRequest.getHeader("token");
+        if (StrUtil.isNotBlank(token)) {
+            String userId = httpServletRequest.getHeader("userId");
+            String realName = httpServletRequest.getHeader("realName");
+            String username = httpServletRequest.getHeader("username");
+            UserInfoDTO userInfoDTO = new UserInfoDTO(userId, username, realName);
+            UserContext.setUser(userInfoDTO);
         }
         try {
             filterChain.doFilter(servletRequest, servletResponse);
@@ -69,17 +58,4 @@ public class UserTransmitFilter implements Filter {
         }
     }
 
-    private void returnJson(HttpServletResponse response, String json) throws Exception {
-        PrintWriter writer = null;
-        response.setCharacterEncoding("UTF-8");
-        response.setContentType("text/html; charset=utf-8");
-        try {
-            writer = response.getWriter();
-            writer.print(json);
-        } catch (IOException e) {
-
-        } finally {
-            if (writer != null) writer.close();
-        }
-    }
 }

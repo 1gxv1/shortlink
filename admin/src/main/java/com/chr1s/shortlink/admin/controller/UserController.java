@@ -40,7 +40,7 @@ public class UserController {
     }
 
     @PostMapping("/api/short-link/admin/v1/user/login")
-    public Result<UserLoginRespDTO> update(@RequestBody UserLoginReqDTO requestParam) {
+    public Result<UserLoginRespDTO> login(@RequestBody UserLoginReqDTO requestParam) {
         return Results.success(userService.login(requestParam));
     }
 
